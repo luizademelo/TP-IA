@@ -15,23 +15,27 @@ typedef struct point
 
     point(int x, int y, int cost = 0, point *parent = nullptr)
         : x(x), y(y), cost(cost), parent(parent) {}
+
+    bool operator==(const point &other) const
+    {
+        return x == other.x && y == other.y;
+    }
+    bool operator>(const point &other) const
+    {
+        return cost > other.cost;
+    }
+
 } point;
 
-struct compare
-{
-    bool operator()(const point *p1, const point *p2) const
-    {
-        if (p1->x == p2->x)
-        {
-            return p1->y < p2->y;
-        }
-        return p1->x < p2->x;
-    }
-};
+// bool operator==(const point &p1, const point &p2)
+// {
+//     return p1.x == p2.x && p1.y == p2.y;
+// }
 
 typedef struct solution
 {
     double cost = 0;
+    point *node;
     vector<point> path;
     bool valid = false;
 } solution;
@@ -70,7 +74,7 @@ struct compare_min_heap
 {
     bool operator()(point *p1, point *p2)
     {
-        return get_cost(*p1) > get_cost(*p2); // Min-heap: lower cost has higher priority
+        return p1->cost > p2->cost; // min-heap: custo menor tem prioridade mais alta
     }
 };
 
@@ -91,7 +95,7 @@ struct compare_a_star
 {
     bool operator()(point *p1, point *p2)
     {
-        return distance_from_goal(p1) + get_cost(*p1) > distance_from_goal(p2) + get_cost(*p2);
+        return distance_from_goal(p1) + p1->cost > distance_from_goal(p2) + p2->cost;
     }
 };
 
@@ -106,13 +110,13 @@ vector<point *> generate_actions(point *node)
     {
         actions.push_back(bottom);
     }
-    if (is_point_valid(up))
-    {
-        actions.push_back(up);
-    }
     if (is_point_valid(left))
     {
         actions.push_back(left);
+    }
+    if (is_point_valid(up))
+    {
+        actions.push_back(up);
     }
     if (is_point_valid(right))
     {
@@ -126,7 +130,7 @@ solution a_star()
     solution s;
     point *node = new point(inicio.x, inicio.y, 0, nullptr);
     priority_queue<point *, vector<point *>, compare_a_star> frontier;
-    set<point *, compare> explored;
+    set<pair<int, int>> explored;
     frontier.push(node);
 
     while (!frontier.empty())
@@ -134,14 +138,14 @@ solution a_star()
 
         node = frontier.top();
         frontier.pop();
-        explored.insert(node);
+        explored.insert({node->x, node->y});
 
         // testando cada ação disponível
         // o nó pode ir pra cima, baixo, esquerda e direita
 
         for (auto child : generate_actions(node))
         {
-            if (is_point_valid(child) && !explored.count(child))
+            if (is_point_valid(child) && !explored.count({child->x, child->y}))
             {
 
                 child->parent = node;
@@ -177,7 +181,7 @@ solution greedy()
     point *node = new point(inicio.x, inicio.y, 0, nullptr);
 
     priority_queue<point *, vector<point *>, compare_greedy> frontier;
-    set<point *, compare> explored;
+    set<pair<int, int>> explored;
     frontier.push(node);
 
     while (!frontier.empty())
@@ -185,14 +189,14 @@ solution greedy()
 
         node = frontier.top();
         frontier.pop();
-        explored.insert(node);
+        explored.insert({node->x, node->y});
 
         // testando cada ação disponível
         // o nó pode ir pra cima, baixo, esquerda e direita
 
         for (auto child : generate_actions(node))
         {
-            if (is_point_valid(child) && !explored.count(child))
+            if (is_point_valid(child) && !explored.count({child->x, child->y}))
             {
                 child->parent = node;
                 child->cost += node->cost + get_cost(*child);
@@ -224,24 +228,30 @@ solution ucs()
     solution s;
     point *node = new point(inicio.x, inicio.y, 0, nullptr);
     priority_queue<point *, vector<point *>, compare_min_heap> frontier;
-    set<point *, compare> explored;
+    set<pair<int, int>> explored;
     frontier.push(node);
+    explored.insert({node->x, node->y});
 
     while (!frontier.empty())
     {
 
         node = frontier.top();
         frontier.pop();
-        explored.insert(node);
 
         // testando cada ação disponível
         // o nó pode ir pra cima, baixo, esquerda e direita
+        explored.insert({node->x, node->y});
 
         for (auto child : generate_actions(node))
         {
 
-            if (is_point_valid(child) && !explored.count(child))
+            explored.insert({node->x, node->y});
+            if (!explored.count({child->x, child->y}))
             {
+                explored.insert({child->x, child->y});
+
+                // cout << child->y << " " << child->x << endl;
+                // cout.flush();
 
                 child->parent = node;
                 child->cost += node->cost + get_cost(*child);
@@ -280,22 +290,26 @@ solution bfs()
     }
 
     queue<point *> frontier;
-    set<point *, compare> explored;
+    set<pair<int, int>> frontier_set;
+    set<pair<int, int>> explored;
     frontier.push(node);
 
     while (!frontier.empty())
     {
+        // std::cout << "f: " << frontier.size() << std::endl;
+        // std::cout << "e: " << explored.size() << std::endl;
 
         node = frontier.front();
         frontier.pop();
-        explored.insert(node);
+        explored.insert({node->x, node->y});
+        frontier_set.insert({node->x, node->y});
 
         // testando cada ação disponível
         // o nó pode ir pra cima, baixo, esquerda e direita
 
         for (auto child : generate_actions(node))
         {
-            if (is_point_valid(child) && !explored.count(child))
+            if (!explored.count({child->x, child->y}))
             {
 
                 child->parent = node;
@@ -314,7 +328,11 @@ solution bfs()
 
                     return s;
                 }
-                frontier.push(child);
+                if (!frontier_set.count({child->x, child->y}))
+                {
+                    frontier.push(child);
+                    frontier_set.insert({child->x, child->y});
+                }
             }
         }
     }
@@ -323,18 +341,19 @@ solution bfs()
 }
 
 // depth limited search
-solution dls(point *node, int current_depth, int max_depth, set<point *, compare> explored)
+solution dls(point *node, int current_depth, int max_depth, set<pair<int, int>> explored)
 {
     solution s;
     s.valid = false;
+    s.node = node;
     if (current_depth >= max_depth)
     {
         return s;
     }
-    explored.insert(node);
+    explored.insert({node->x, node->y});
     for (auto child : generate_actions(node))
     {
-        if (is_point_valid(child) && !explored.count(child))
+        if (!explored.count({child->x, child->y}))
         {
             child->parent = node;
 
@@ -398,10 +417,10 @@ void parse_input(int argc, char *argv[], string &filename, string &metodo)
 
     filename = argv[1];
     metodo = argv[2];
-    inicio.x = atoi(argv[3]);
-    inicio.y = atoi(argv[4]);
-    fim.x = atoi(argv[5]);
-    fim.y = atoi(argv[6]);
+    inicio.y = atoi(argv[3]);
+    inicio.x = atoi(argv[4]);
+    fim.y = atoi(argv[5]);
+    fim.x = atoi(argv[6]);
 }
 
 void print_solution(solution s)
@@ -410,7 +429,7 @@ void print_solution(solution s)
 
     for (int i = s.path.size() - 1; i >= 0; i--)
     {
-        std::cout << "(" << s.path[i].x << ", " << s.path[i].y << ") ";
+        std::cout << "(" << s.path[i].y << ", " << s.path[i].x << ") ";
     }
 }
 
@@ -436,16 +455,19 @@ int main(int argc, char *argv[])
     else if (metodo == "IDS")
     {
         solution s;
+        set<pair<int, int>> explored;
+        point *node = new point(inicio.x, inicio.y, 0, nullptr);
         for (int depth = 0; depth <= 100000; depth++)
         {
-            set<point *, compare> explored;
-            point *node = new point(inicio.x, inicio.y, 0, nullptr);
 
             s = dls(node, 0, depth, explored);
             if (s.valid)
             {
                 break;
             }
+
+            // node = s.node;
+            // std::cout << depth << std::endl;
         }
         print_solution(s);
     }
